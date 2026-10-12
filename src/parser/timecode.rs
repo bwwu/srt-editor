@@ -6,7 +6,7 @@ static RE_TIMECODE_LINE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(\d{2}):(\d{2}):(\d{2}),(\d{3})\s+-->\s+(\d{2}):(\d{2}):(\d{2}),(\d{3})").unwrap()
 });
 
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Timecode {
     pub hour: u8,
     pub min: u8,
@@ -14,10 +14,10 @@ pub struct Timecode {
     pub millis: u16,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct TimecodeLine {
-    start: Timecode,
-    end: Timecode,
+    pub(crate) start: Timecode,
+    pub(crate) end: Timecode,
 }
 
 impl TimecodeLine {
@@ -80,7 +80,7 @@ mod test {
     use crate::parser::timecode::{Timecode, TimecodeLine};
 
     #[test]
-    fn test_new() {
+    fn test_new_is_ok() {
         assert_eq!(
             TimecodeLine::new("01:02:03,456 --> 17:18:19,012").unwrap(),
             TimecodeLine {

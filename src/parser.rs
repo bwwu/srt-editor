@@ -1,9 +1,13 @@
+mod subtitle;
 mod timecode;
 
 use anyhow::Result;
 use regex::Regex;
 use std::sync::LazyLock;
+use subtitle::Subtitle;
 use timecode::TimecodeLine;
+
+static RE_BREAK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s+$").unwrap());
 
 static RE_COUNTER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\d+$").unwrap());
 
@@ -26,20 +30,68 @@ enum SrtState {
 
 #[derive(Debug)]
 enum SrtToken {
-    Counter(u16),
+    Counter(u32),
     TimecodeLine(TimecodeLine),
     TextLine(String),
     Break,
 }
 
-pub fn parse(text: String) {
+pub fn parse(text: String) -> Result<Vec<Subtitle>> {
     let mut state = SrtState::ExpectStartBlock;
 
     let lines: Vec<&str> = text.lines().collect();
+    let mut count: u32 = 0;
+    let mut timecode_line = TimecodeLine::default();
+    let mut text_buf = String::new();
+
+    let mut subtitles: Vec<Subtitle> = vec![];
 
     for line in lines {
         let next_token = parse_line(String::from(line));
+        match &state {
+            SrtState::ExpectStartBlock => {
+                if let Ok(SrtToken::Counter(new_count)) = next_token {
+                    count = new_count;
+                    state = SrtState::ExpectTimecode;
+                } else {
+                    return Err(anyhow::anyhow!("expected a counter"));
+                }
+            }
+            SrtState::ExpectTimecode => {
+                if let Ok(SrtToken::TimecodeLine(new_timecode_line)) = next_token {
+                    timecode_line = new_timecode_line;
+                    state = SrtState::ExpectTextline;
+                } else {
+                    return Err(anyhow::anyhow!("expected a timecode line"));
+                }
+            }
+            SrtState::ExpectTextline => {
+                if let Ok(SrtToken::TextLine(first_text_line)) = next_token {
+                    state = SrtState::MaybeExpectEndBlock;
+                    text_buf.clear();
+                    text_buf.push_str(first_text_line.as_str());
+                }
+            }
+            SrtState::MaybeExpectEndBlock => {
+                if let Ok(SrtToken::TextLine(next_text_line)) = next_token {
+                    text_buf.push('\n');
+                    text_buf.push_str(next_text_line.as_str());
+                } else if let Ok(SrtToken::Break) = next_token {
+                    // todo create new subtitle
+                    subtitles.push(Subtitle {
+                        count,
+                        timecode_line,
+                        text: text_buf.clone(),
+                    });
+                    state = SrtState::ExpectStartBlock;
+                } else {
+                    return Err(anyhow::anyhow!("expected either a text line or a break"));
+                }
+            }
+        }
     }
+
+    Ok(subtitles)
 }
 
 /// Parse a single line of text into a token
@@ -48,8 +100,10 @@ fn parse_line(line: String) -> Result<SrtToken> {
         Ok(SrtToken::Counter(line.parse()?))
     } else if RE_TIMECODE_LINE.is_match(line.as_str()) {
         Ok(SrtToken::TimecodeLine(TimecodeLine::new(line.as_str())?))
-    } else {
+    } else if RE_BREAK.is_match(line.as_str()) {
         Ok(SrtToken::Break)
+    } else {
+        Ok(SrtToken::TextLine(line))
     }
 }
 
@@ -63,8 +117,45 @@ impl SrtParser {
 
 #[cfg(test)]
 mod tests {
-    use logos::Logos;
+    use crate::parser::{
+        parse,
+        subtitle::Subtitle,
+        timecode::{Timecode, TimecodeLine},
+    };
 
     #[test]
-    fn test_lex() {}
+    fn test_parse_ok() {
+        let text = String::from(
+            "1
+00:01:00,000 --> 00:01:03,000
+Hello, world!
+foo, bar
+    
+",
+        );
+        assert_eq!(
+            parse(text).unwrap(),
+            vec![Subtitle {
+                count: 1,
+                timecode_line: TimecodeLine {
+                    start: Timecode {
+                        hour: 0,
+                        min: 1,
+                        sec: 0,
+                        millis: 0
+                    },
+                    end: Timecode {
+                        hour: 0,
+                        min: 1,
+                        sec: 3,
+                        millis: 0
+                    }
+                },
+                text: String::from(
+                    "Hello, world!
+foo, bar"
+                )
+            }]
+        );
+    }
 }
