@@ -5,7 +5,7 @@ use anyhow::Result;
 use regex::Regex;
 use std::sync::LazyLock;
 use subtitle::Subtitle;
-use timecode::TimecodeLine;
+use timecode::{Timecode, TimecodeLine};
 
 static RE_BREAK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*$").unwrap());
 
@@ -124,6 +124,14 @@ impl SubRip {
         Ok(Self {
             subtitles: parse(text)?,
         })
+    }
+
+    pub fn apply_offset(&mut self, offset: Timecode) -> &Self {
+        for s in &mut self.subtitles {
+            s.timecode_line.start.offset(offset);
+            s.timecode_line.end.offset(offset);
+        }
+        self
     }
 }
 

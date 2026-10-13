@@ -23,6 +23,8 @@ impl Timecode {
             millis,
         }
     }
+
+    /// Add a positive offset
     pub fn offset(&mut self, rhs: Timecode) -> &Self {
         self.millis += rhs.millis;
         let millis_overflow = self.millis / 1000;
@@ -39,6 +41,16 @@ impl Timecode {
         self.hour += rhs.hour + min_overflow;
 
         self
+    }
+}
+
+impl std::fmt::Display for Timecode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:02}:{:02}:{:02},{:03}",
+            self.hour, self.min, self.sec, self.millis
+        )
     }
 }
 
@@ -129,6 +141,18 @@ mod test {
     fn test_offset_with_overflow() {
         let mut timecode = Timecode::new(0, 1, 1, 2);
         let offset = Timecode::new(0, 58, 59, 999);
-        assert_eq!(timecode.offset(offset), &Timecode::new(1,0,1,1));
+        assert_eq!(timecode.offset(offset), &Timecode::new(1, 0, 1, 1));
+    }
+
+    #[test]
+    fn to_string() {
+        assert_eq!(
+            Timecode::new(1, 22, 3, 44).to_string(),
+            String::from("01:22:03,044")
+        );
+        assert_eq!(
+            Timecode::new(11, 22, 33, 444).to_string(),
+            String::from("11:22:33,444")
+        );
     }
 }
