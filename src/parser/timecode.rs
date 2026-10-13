@@ -14,6 +14,34 @@ pub struct Timecode {
     pub millis: u16,
 }
 
+impl Timecode {
+    pub fn new(hour: u8, min: u8, sec: u8, millis: u16) -> Self {
+        Self {
+            hour,
+            min,
+            sec,
+            millis,
+        }
+    }
+    pub fn offset(&mut self, rhs: Timecode) -> &Self {
+        self.millis += rhs.millis;
+        let millis_overflow = self.millis / 1000;
+        self.millis %= 1000;
+
+        self.sec += rhs.sec + millis_overflow as u8;
+        let sec_overflow = self.sec / 60;
+        self.sec %= 60;
+
+        self.min += rhs.min + sec_overflow;
+        let min_overflow = self.min / 60;
+        self.min %= 60;
+
+        self.hour += rhs.hour + min_overflow;
+
+        self
+    }
+}
+
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct TimecodeLine {
     pub(crate) start: Timecode,
@@ -84,19 +112,23 @@ mod test {
         assert_eq!(
             TimecodeLine::new("01:02:03,456 --> 17:18:19,012").unwrap(),
             TimecodeLine {
-                start: Timecode {
-                    hour: 1,
-                    min: 2,
-                    sec: 3,
-                    millis: 456,
-                },
-                end: Timecode {
-                    hour: 17,
-                    min: 18,
-                    sec: 19,
-                    millis: 12
-                }
+                start: Timecode::new(1, 2, 3, 456),
+                end: Timecode::new(17, 18, 19, 12),
             }
         );
+    }
+
+    #[test]
+    fn test_offset_no_overflow() {
+        let mut timecode = Timecode::new(45, 20, 33, 100);
+        let offset = Timecode::new(1, 39, 26, 899);
+        assert_eq!(timecode.offset(offset), &Timecode::new(46, 59, 59, 999));
+    }
+
+    #[test]
+    fn test_offset_with_overflow() {
+        let mut timecode = Timecode::new(0, 1, 1, 2);
+        let offset = Timecode::new(0, 58, 59, 999);
+        assert_eq!(timecode.offset(offset), &Timecode::new(1,0,1,1));
     }
 }

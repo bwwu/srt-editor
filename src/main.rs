@@ -1,5 +1,5 @@
 use clap::Parser;
-use srt_editor::parser::SrtParser;
+use srt_editor::parser::SubRip;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -11,6 +11,6 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let parser = SrtParser {};
+    let parser = SubRip::from_string(String::from(""));
     println!("Hello {} !", args.filepath);
 }
