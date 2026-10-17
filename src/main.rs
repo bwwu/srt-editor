@@ -1,5 +1,5 @@
 use clap::Parser;
-use srt_editor::parser::SubRip;
+use srt_editor::subrip::SubRip;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

@@ -8,14 +8,14 @@ static RE_TIMECODE_LINE: LazyLock<Regex> = LazyLock::new(|| {
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Timecode {
-    pub hour: u8,
-    pub min: u8,
-    pub sec: u8,
-    pub millis: u16,
+    pub hour: i8,
+    pub min: i8,
+    pub sec: i8,
+    pub millis: i16,
 }
 
 impl Timecode {
-    pub fn new(hour: u8, min: u8, sec: u8, millis: u16) -> Self {
+    pub fn new(hour: i8, min: i8, sec: i8, millis: i16) -> Self {
         Self {
             hour,
             min,
@@ -27,16 +27,31 @@ impl Timecode {
     /// Add a positive offset
     pub fn offset(&mut self, rhs: Timecode) -> &Self {
         self.millis += rhs.millis;
-        let millis_overflow = self.millis / 1000;
+        let mut millis_overflow = self.millis / 1000;
         self.millis %= 1000;
 
-        self.sec += rhs.sec + millis_overflow as u8;
-        let sec_overflow = self.sec / 60;
+        if self.millis < 0 {
+            self.millis += 1000;
+            millis_overflow = -1;
+        }
+
+        self.sec += rhs.sec + millis_overflow as i8;
+        let mut sec_overflow = self.sec / 60;
         self.sec %= 60;
 
+        if self.sec < 0 {
+            sec_overflow = -1;
+            self.sec +=60;
+        }
+
         self.min += rhs.min + sec_overflow;
-        let min_overflow = self.min / 60;
+        let mut min_overflow = self.min / 60;
         self.min %= 60;
+
+        if self.min < 0 {
+            min_overflow = -1;
+            self.min += 60;
+        }
 
         self.hour += rhs.hour + min_overflow;
 
@@ -70,44 +85,44 @@ impl TimecodeLine {
                         .get(1)
                         .ok_or(anyhow::anyhow!(""))?
                         .as_str()
-                        .parse::<u8>()?,
+                        .parse::<i8>()?,
                     min: caps
                         .get(2)
                         .ok_or(anyhow::anyhow!(""))?
                         .as_str()
-                        .parse::<u8>()?,
+                        .parse::<i8>()?,
                     sec: caps
                         .get(3)
                         .ok_or(anyhow::anyhow!(""))?
                         .as_str()
-                        .parse::<u8>()?,
+                        .parse::<i8>()?,
                     millis: caps
                         .get(4)
                         .ok_or(anyhow::anyhow!(""))?
                         .as_str()
-                        .parse::<u16>()?,
+                        .parse::<i16>()?,
                 },
                 end: Timecode {
                     hour: caps
                         .get(5)
                         .ok_or(anyhow::anyhow!(""))?
                         .as_str()
-                        .parse::<u8>()?,
+                        .parse::<i8>()?,
                     min: caps
                         .get(6)
                         .ok_or(anyhow::anyhow!(""))?
                         .as_str()
-                        .parse::<u8>()?,
+                        .parse::<i8>()?,
                     sec: caps
                         .get(7)
                         .ok_or(anyhow::anyhow!(""))?
                         .as_str()
-                        .parse::<u8>()?,
+                        .parse::<i8>()?,
                     millis: caps
                         .get(8)
                         .ok_or(anyhow::anyhow!(""))?
                         .as_str()
-                        .parse::<u16>()?,
+                        .parse::<i16>()?,
                 },
             }),
         }
@@ -142,6 +157,24 @@ mod test {
         let mut timecode = Timecode::new(0, 1, 1, 2);
         let offset = Timecode::new(0, 58, 59, 999);
         assert_eq!(timecode.offset(offset), &Timecode::new(1, 0, 1, 1));
+    }
+
+    #[test]
+    fn test_negative_offset() {
+        let mut timecode = Timecode::new(45, 20, 33, 100);
+        let offset = Timecode::new(-3,-10,-13,-70);
+        assert_eq!(timecode.offset(offset), &Timecode::new(42,10,20,30));
+    }
+
+    #[test]
+    fn test_negative_offset_overflow() {
+        let mut timecode = Timecode::new(1, 20, 10, 10);
+        let offset_single_overflow = Timecode::new(0, 0, -4,-11);
+        assert_eq!(timecode.offset(offset_single_overflow), &Timecode::new(1,20,5,999));
+
+
+        let offset_multi_overflow = Timecode::new(0, -30, -10, -11);
+        assert_eq!(timecode.offset(offset_multi_overflow), &Timecode::new(0,49,59,999));
     }
 
     #[test]
