@@ -1,5 +1,5 @@
-mod subtitle;
-mod timecode;
+pub mod subtitle;
+pub mod timecode;
 
 use anyhow::Result;
 use regex::Regex;
@@ -114,26 +114,6 @@ fn parse_line(line: String) -> Result<SrtToken> {
     }
 }
 
-#[derive(Default)]
-pub struct SubRip {
-    subtitles: Vec<Subtitle>,
-}
-
-impl SubRip {
-    pub fn from_string(text: String) -> Result<Self> {
-        Ok(Self {
-            subtitles: parse(text)?,
-        })
-    }
-
-    pub fn apply_offset(&mut self, offset: Timecode) -> &Self {
-        for s in &mut self.subtitles {
-            s.timecode_line.start.offset(offset);
-            s.timecode_line.end.offset(offset);
-        }
-        self
-    }
-}
 
 #[cfg(test)]
 mod tests {
