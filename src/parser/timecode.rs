@@ -24,6 +24,12 @@ impl Timecode {
         }
     }
 
+    pub fn from_f64(val: f64) -> Self {
+        let millis = val.fract() * 1000 as i16;
+        let sec = val as i8;
+
+    }
+
     /// Add a positive offset
     pub fn offset(&mut self, rhs: Timecode) -> &Self {
         self.millis += rhs.millis;
